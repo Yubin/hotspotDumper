@@ -15,33 +15,38 @@ my %citymapsHash = {};
 open (I,$citymaps) ||die "cannot find citymaps file $citymaps\n";
 while(my $line=<I>){
     $line =~ m/(.+)=(.+)/g;
+    $1=~ s/^\s+//;
+    $2=~ s/^\s+//;
     $citymapsHash{$1} = $2;
 }
 close(I);
 # print Dumper(keys %citymapsHash);
 
-my $response= $browser->post($url, ['state'=>'北京市','city'=>'朝阳区']);
 
-my $json = new JSON;
+for my $state (keys %citymapsHash){
+	if (!exit $citymapsHash{$state}) next;
+	mkdir $state;
+	for my $city (split(/,/,$citymapsHash{$state})){
+		open (T,">$state/$city.txt");
+		my $response= $browser->post($url, ['state'=>$state,'city'=>$city]);
+		my $json = new JSON;
 #my $dataJSON = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($response->content);
-my $dataJSON = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($response->content);
+		my $dataJSON = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($response->content);
+		foreach my $point (@{$dataJSON->{'points'}}){
 
-foreach my $point (@{$dataJSON->{'points'}}){
+			my $id = $point->{'id'};
+			my $lat = $point->{'lat'};
+			my $lng = $point->{'lng'};
+			my $name = encode( "utf8",$point->{'name'});
+			my $body = encode( "utf8",$point->{'body'});
+			my $hotspottype = encode( "utf8",$point->{'hotspottype'});
+			my $street = encode( "utf8",$point->{'street'});
+			my $isp = encode( "utf8",$point->{'isp'});
 
-foreach my $key ('street','lat','name','body','hotspottype','id','lng','isp'){
-    foreach my $key ('id'){
-        print encode( "utf8", $point->{$key});
-    }
-    print "\n";
-}
-=p
-for my $state (keys %citymapsHash)
-{
-    mkdir $state;
-    for my $city (split(/,/,$citymapsHash{$state})){
-        my %parmArr = ('state'=>$state,'city'=>$city);
-        my $response= $browser->post($url, %parmArr);
-        print $response->content;
-    }
+			print T "$id\t$lat\t$lng\t$name\t$body\t$hotspottype\t$street\t$isp\n";
+
+		}
+		close(T);
+	}
 }
 
