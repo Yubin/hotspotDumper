@@ -10,28 +10,33 @@ my $url = $ARGV[0];
 my $citymaps = $ARGV[1];
 my $browser = LWP::UserAgent->new();
 
-my %citymapsHash = {};
+my %citymapsHash = ();
 # import citymaps
 open (I,$citymaps) ||die "cannot find citymaps file $citymaps\n";
 while(my $line=<I>){
     $line =~ m/(.+)=(.+)/g;
-    $1=~ s/^\s+//;
-    $2=~ s/^\s+//;
-    $citymapsHash{$1} = $2;
+    my $state = $1;
+    my $city = $2;
+    $state =~ s/(^\s+|\s+$)//g;
+    $city =~ s/(^\s+|\s+$)//g;
+    $citymapsHash{$state} = $city;
 }
 close(I);
 # print Dumper(keys %citymapsHash);
 
 
 for my $state (keys %citymapsHash){
-	if (!exit $citymapsHash{$state}) next;
+	if (!exists $citymapsHash{$state}){ next;}
 	mkdir $state;
+	print "State [$state] created!\n";
 	for my $city (split(/,/,$citymapsHash{$state})){
+		print "  City [$city] begin: ";
 		open (T,">$state/$city.txt");
 		my $response= $browser->post($url, ['state'=>$state,'city'=>$city]);
 		my $json = new JSON;
 #my $dataJSON = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($response->content);
 		my $dataJSON = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($response->content);
+		my $i = 0;
 		foreach my $point (@{$dataJSON->{'points'}}){
 
 			my $id = $point->{'id'};
@@ -44,9 +49,10 @@ for my $state (keys %citymapsHash){
 			my $isp = encode( "utf8",$point->{'isp'});
 
 			print T "$id\t$lat\t$lng\t$name\t$body\t$hotspottype\t$street\t$isp\n";
-
+			$i++;
 		}
 		close(T);
+		print " $i points add to $state/$city.txt\n ";
 	}
 }
 
